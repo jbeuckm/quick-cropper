@@ -120,20 +120,32 @@ export default class MenuBuilder {
                           quality: 1, // the jpeg compression quality, between 0 and 1
                         });
 
-                        return `data:image/jpeg;base64,${outputBuffer.toString(
-                          'base64'
-                        )}`;
+                        return {
+                          path,
+                          extension,
+                          data: `data:image/jpeg;base64,${outputBuffer.toString(
+                            'base64'
+                          )}`,
+                        };
 
                       case 'jpeg':
                       case 'jpg':
-                        return `data:image/jpeg;base64,${buffer.toString(
-                          'base64'
-                        )}`;
+                        return {
+                          path,
+                          extension,
+                          data: `data:image/jpeg;base64,${buffer.toString(
+                            'base64'
+                          )}`,
+                        };
 
                       case 'png':
-                        return `data:image/png;base64,${buffer.toString(
-                          'base64'
-                        )}`;
+                        return {
+                          path,
+                          extension,
+                          data: `data:image/png;base64,${buffer.toString(
+                            'base64'
+                          )}`,
+                        };
                     }
                   });
 
