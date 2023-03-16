@@ -6,6 +6,8 @@ import {
   BrowserWindow,
   MenuItemConstructorOptions,
 } from 'electron';
+import fs from 'fs';
+const convert = require('heic-convert');
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -92,22 +94,52 @@ export default class MenuBuilder {
           label: 'Open File',
           accelerator: 'CmdOrCtrl+O',
           // this is the main bit hijack the click event
-          click() {
+          click: () => {
+            const { mainWindow } = this;
             // construct the select file dialog
             dialog
               .showOpenDialog({
                 properties: ['openFile', 'multiSelections'],
                 filters: [
-                  { name: 'Images', extensions: ['jpg', 'png', 'gif'] },
+                  { name: 'Images', extensions: ['jpg', 'png', 'gif', 'heic'] },
                 ],
               })
-              .then(function (fileObj) {
-                // the fileObj has two props
+              .then(async (fileObj) => {
+                console.log(fileObj);
                 if (!fileObj.canceled) {
-                  this.mainWindow.webContents.send(
-                    'FILE_OPEN',
-                    fileObj.filePaths
-                  );
+                  const promises = fileObj.filePaths.map(async (path) => {
+                    const buffer = fs.readFileSync(path);
+
+                    const extension = path.split('.').pop().toLowerCase();
+
+                    switch (extension) {
+                      case 'heic':
+                        const outputBuffer = await convert({
+                          buffer: buffer, // the HEIC file buffer
+                          format: 'JPEG', // output format
+                          quality: 1, // the jpeg compression quality, between 0 and 1
+                        });
+
+                        return `data:image/jpeg;base64,${outputBuffer.toString(
+                          'base64'
+                        )}`;
+
+                      case 'jpeg':
+                      case 'jpg':
+                        return `data:image/jpeg;base64,${buffer.toString(
+                          'base64'
+                        )}`;
+
+                      case 'png':
+                        return `data:image/png;base64,${buffer.toString(
+                          'base64'
+                        )}`;
+                    }
+                  });
+
+                  const files = await Promise.all(promises);
+
+                  mainWindow.webContents.send('FILE_OPEN', files);
                 }
               })
               // should always handle the error yourself, later Electron release might crash if you don't
@@ -121,22 +153,6 @@ export default class MenuBuilder {
           click() {
             app.quit();
           },
-        },
-      ],
-    };
-    const subMenuEdit: DarwinMenuItemConstructorOptions = {
-      label: 'Edit',
-      submenu: [
-        { label: 'Undo', accelerator: 'Command+Z', selector: 'undo:' },
-        { label: 'Redo', accelerator: 'Shift+Command+Z', selector: 'redo:' },
-        { type: 'separator' },
-        { label: 'Cut', accelerator: 'Command+X', selector: 'cut:' },
-        { label: 'Copy', accelerator: 'Command+C', selector: 'copy:' },
-        { label: 'Paste', accelerator: 'Command+V', selector: 'paste:' },
-        {
-          label: 'Select All',
-          accelerator: 'Command+A',
-          selector: 'selectAll:',
         },
       ],
     };
@@ -191,37 +207,6 @@ export default class MenuBuilder {
         { label: 'Bring All to Front', selector: 'arrangeInFront:' },
       ],
     };
-    const subMenuHelp: MenuItemConstructorOptions = {
-      label: 'Help',
-      submenu: [
-        {
-          label: 'Learn More',
-          click() {
-            shell.openExternal('https://electronjs.org');
-          },
-        },
-        {
-          label: 'Documentation',
-          click() {
-            shell.openExternal(
-              'https://github.com/electron/electron/tree/main/docs#readme'
-            );
-          },
-        },
-        {
-          label: 'Community Discussions',
-          click() {
-            shell.openExternal('https://www.electronjs.org/community');
-          },
-        },
-        {
-          label: 'Search Issues',
-          click() {
-            shell.openExternal('https://github.com/electron/electron/issues');
-          },
-        },
-      ],
-    };
 
     const subMenuView =
       process.env.NODE_ENV === 'development' ||
@@ -229,14 +214,7 @@ export default class MenuBuilder {
         ? subMenuViewDev
         : subMenuViewProd;
 
-    return [
-      subMenuAbout,
-      subMenuFile,
-      subMenuEdit,
-      subMenuView,
-      subMenuWindow,
-      subMenuHelp,
-    ];
+    return [subMenuAbout, subMenuFile, subMenuView, subMenuWindow];
   }
 
   buildDefaultTemplate() {

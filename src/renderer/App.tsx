@@ -1,8 +1,17 @@
+import { useEffect } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import icon from '../../assets/icon.svg';
 import './App.css';
 
 function Hello() {
+  useEffect(() => {
+    window.electron.ipcRenderer.on('FILE_OPEN', (event, args) => {
+      // here the args will be the fileObj.filePaths array
+      // do whatever you need to do with it
+      console.log('got FILE_OPEN', event, args);
+    });
+  }, []);
+
   return (
     <div>
       <div className="Hello">
