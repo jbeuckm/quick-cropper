@@ -161,6 +161,14 @@ export default class MenuBuilder {
           },
         },
         {
+          label: 'Crop and Save',
+          accelerator: 'CmdOrCtrl+S',
+          click: () => {
+            const { mainWindow } = this;
+            mainWindow.webContents.send('CROP_AND_SAVE');
+          },
+        },
+        {
           label: 'Exit',
           click() {
             app.quit();

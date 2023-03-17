@@ -14,6 +14,7 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
+const Jimp = require('jimp');
 
 class AppUpdater {
   constructor() {
@@ -29,6 +30,41 @@ ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
+});
+
+ipcMain.on('PERFORM_CROP', (event, args) => {
+  const { selectedImage, box } = args;
+
+  try {
+    const buffer = Buffer.from(
+      selectedImage.data.replace('data:image/jpeg;base64,', ''),
+      'base64'
+    );
+    Jimp.read(buffer).then((image) => {
+      image.crop(box.x, box.y, box.width, box.height);
+      image.resize(512, 512);
+
+      const path = `${selectedImage.path.split('.')[0]}_hexagon.jpg`;
+
+      image.writeAsync(path);
+
+      image.getBuffer(Jimp.MIME_JPEG, (err, buffer) => {
+        try {
+          const newImage = {
+            data: `data:image/jpeg;base64,${buffer.toString('base64')}`,
+            path,
+            extension: 'jpg',
+          };
+
+          event.reply('CROP_COMPLETE', newImage);
+        } catch (e) {
+          console.log(e);
+        }
+      });
+    });
+  } catch (e) {
+    console.log(e);
+  }
 });
 
 if (process.env.NODE_ENV === 'production') {

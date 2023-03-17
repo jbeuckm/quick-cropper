@@ -1,30 +1,63 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import Croppr from 'croppr';
 import './croppr.min.css';
+
+const { ipcRenderer } = window.electron;
 
 export default function App() {
   const [images, setImages] = useState([]);
   const [selectedImage, setSelectedImage] = useState();
   const [croppr, setCroppr] = useState();
-  const cropprImg = useRef();
+  const [box, setBox] = useState();
+
+  const cropAndSave = useCallback(() => {
+    console.log({ box });
+
+    ipcRenderer.on('CROP_COMPLETE', (newImage) => {
+      // console.log(newImage.data);
+      // setImages([newImage]);
+    });
+    ipcRenderer.sendMessage('PERFORM_CROP', { selectedImage, box });
+  }, [box, selectedImage]);
 
   useEffect(() => {
-    window.electron.ipcRenderer.on('FILE_OPEN', (event, args) => {
-      setImages(event);
-    });
+    const remove = ipcRenderer.on('CROP_AND_SAVE', cropAndSave);
+
+    return () => {
+      remove();
+    };
+  }, [box]);
+
+  const receiveImages = (event, args) => {
+    setImages(event);
+  };
+
+  useEffect(() => {
+    const remove = ipcRenderer.on('FILE_OPEN', receiveImages);
+
+    return () => {
+      remove();
+    };
   }, []);
 
   useEffect(() => {
-    if (cropprImg.current) {
-      setCroppr(
-        new Croppr(cropprImg.current, {
-          startSize: [50, 50],
-          aspectRatio: 1,
-        })
-      );
+    if (selectedImage) {
+      const newCroppr = new Croppr('#croppr', {
+        startSize: [50, 50],
+        // minSize: [512, 512, 'px'],
+        aspectRatio: 1,
+
+        // onInitialize: (instance) => console.log(instance),
+        onCropEnd: function (value) {
+          setBox(value);
+        },
+      });
+
+      setBox(newCroppr.getValue());
+      setCroppr(newCroppr);
     }
-  }, [cropprImg.current]);
+  }, [selectedImage, setBox]);
 
   return (
     <div>
@@ -33,12 +66,19 @@ export default function App() {
           key={image.path}
           height="100"
           src={image.data}
-          onClick={() => setSelectedImage(image)}
+          onClick={() => {
+            try {
+              croppr?.destroy();
+              setSelectedImage(image);
+            } catch (e) {
+              console.log(e);
+            }
+          }}
         />
       ))}
 
-      {selectedImage && (
-        <img ref={cropprImg} width="100%" src={selectedImage.data} />
+      {!!selectedImage && (
+        <img id="croppr" width="100%" src={selectedImage.data} />
       )}
     </div>
   );
